@@ -1,0 +1,43 @@
+apiVersion: apps/v1 # for versions before 1.9.0 use apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: pg-prometheus-adapter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: pg-prometheus-adapter
+  replicas: 1 # tells deployment to run 2 pods matching the template
+  template:
+    metadata:
+      labels:
+        app: pg-prometheus-adapter
+    spec:
+      containers:
+      - name: pg-prometheus-adapter
+        image: timescale/prometheus-postgresql-adapter:master
+        ports:
+        - containerPort: 9201
+        args:
+          - "-pg.host=pg-prometheus"
+          - "-pg.prometheus-log-samples"
+
+
+ 
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-prometheus-adapter
+  namespace: monitoring
+  labels:
+    app: pg-prometheus-adapter
+spec:
+  ports:
+    # the port that this service should serve on
+    - port: 9201
+      targetPort: 9201
+  # label keys and values that must match in order to receive traffic for this service
+  selector:
+    app: pg-prometheus-adapter

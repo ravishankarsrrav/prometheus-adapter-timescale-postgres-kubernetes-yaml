@@ -1,0 +1,77 @@
+apiVersion: apps/v1 # for versions before 1.9.0 use apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: pg-prometheus
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: pg-prometheus
+  replicas: 1 # tells deployment to run 2 pods matching the template
+  template:
+    metadata:
+      labels:
+        app: pg-prometheus
+    spec:
+      initContainers:
+      - name: "remove-lost-found"
+        image: "busybox:1.25.0" 
+        imagePullPolicy: Always
+        command: 
+        - "rm"
+        - "-fr"
+        - "/var/lib/postgresql/data/lost+found"
+        volumeMounts:
+        - name: prometheusdatabase-vol
+          mountPath: /var/lib/postgresql/data
+      securityContext:
+        fsGroup: 1001
+      containers:
+      - name: pg-prometheus
+        image: timescale/pg_prometheus:master
+        ports:
+        - containerPort: 5432
+        args:
+          - "postgres"
+          - "-csynchronous_commit=off"
+        volumeMounts:
+        - name: prometheusdatabase-vol
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: prometheusdatabase-vol
+        persistentVolumeClaim:
+          claimName: prometheusdatabase
+      imagePullPolicy: Always    
+
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: prometheusdatabase
+  namespace: monitoring
+spec:
+  storageClassName: rbd
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+--- 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-prometheus
+  namespace: monitoring
+  labels:
+    app: pg-prometheus
+spec:
+  ports:
+    # the port that this service should serve on
+    - port: 5432
+      targetPort: 5432
+      name: "postgresql"
+  # label keys and values that must match in order to receive traffic for this service
+  selector:
+    app: pg-prometheus
